@@ -8,10 +8,12 @@ services:
       composer install --no-dev --optimize-autoloader
       npm install
       npm run build
-      php artisan key:generate
-      mkdir -p database
-      touch database/database.sqlite
-    startCommand: php artisan serve --host 0.0.0.0 --port $PORT
+    startCommand: heroku-php-apache2 public/
+    postdeployCommand: |
+      php artisan key:generate --force
+      mkdir -p /tmp/database
+      touch /tmp/database/database.sqlite
+      php artisan migrate --force
     envVars:
       - key: APP_ENV
         value: production
@@ -23,11 +25,13 @@ services:
         value: https://prograweb2.onrender.com
       - key: DB_CONNECTION
         value: sqlite
+      - key: DB_DATABASE
+        value: /tmp/database/database.sqlite
       - key: SESSION_DRIVER
-        value: database
+        value: file
       - key: CACHE_STORE
-        value: database
+        value: file
       - key: QUEUE_CONNECTION
-        value: database
+        value: sync
       - key: FILESYSTEM_DISK
         value: local
