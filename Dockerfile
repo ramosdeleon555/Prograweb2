@@ -1,36 +1,36 @@
-# Usamos la imagen oficial de PHP 8.2 con CLI
-FROM php:8.2-cli
+.# Usa la imagen base oficial de PHP con las extensiones necesarias
+FROM php:8.3-cli
 
-# Establecemos el directorio de trabajo
+# Instala dependencias del sistema y extensiones necesarias para Laravel
+RUN apt-get update && apt-get install -y \
+    git unzip libpng-dev libonig-dev libxml2-dev sqlite3 libsqlite3-dev nodejs npm curl && \
+    docker-php-ext-install pdo pdo_sqlite bcmath
+
+# Configura el directorio de trabajo
 WORKDIR /var/www/html
 
-# Instalamos dependencias del sistema y extensiones de PHP
-RUN apt-get update && apt-get install -y \
-        git \
-        unzip \
-        libpng-dev \
-        libjpeg-dev \
-        libfreetype6-dev \
-        libsqlite3-dev \
-        libonig-dev \
-        curl \
-        zip \
-        unzip \
-        && docker-php-ext-configure gd --with-freetype --with-jpeg \
-        && docker-php-ext-install pdo pdo_sqlite gd \
-        && rm -rf /var/lib/apt/lists/*
-
-# Instalamos Composer
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-
-# Copiamos los archivos del proyecto al contenedor
+# Copia los archivos del proyecto
 COPY . .
 
-# Instalamos dependencias de Laravel
-RUN composer install
+# Copia el .env.example y renómbralo a .env
+COPY .env.example .env
 
-# Exponemos el puerto para PHP built-in server
-EXPOSE 8000
+# Instala dependencias de Composer
+RUN curl -sS https://getcomposer.org/installer | php && \
+    php composer.phar install --no-dev --optimize-autoloader
 
-# Comando por defecto al iniciar el contenedor
-CMD ["php", "-S", "0.0.0.0:8000", "-t", "public"]
+# Instala dependencias de Node y construye assets con Vite
+RUN npm install && npm run build
+
+# Crea la base de datos SQLite
+RUN mkdir -p database && touch database/database.sqlite
+
+# Genera key de Laravel y ejecuta migraciones
+RUN php artisan key:generate
+RUN php artisan migrate --force
+
+# Expone el puerto que Render usará
+EXPOSE 10000
+
+# Comando de inicio
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=10000"]
