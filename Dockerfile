@@ -1,32 +1,42 @@
-# Usa la imagen oficial de PHP con extensiones
-FROM php:8.2-fpm
+# Imagen base oficial de PHP con Apache
+FROM php:8.2-apache
 
-# Instalar dependencias del sistema
+# Instalar extensiones y dependencias del sistema necesarias para Laravel y SQLite
 RUN apt-get update && apt-get install -y \
     git curl libpng-dev libjpeg-dev libfreetype6-dev zip unzip nodejs npm \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo pdo_sqlite gd
 
-# Instalar Composer
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+# Habilitar mod_rewrite de Apache (necesario para Laravel)
+RUN a2enmod rewrite
 
-# Configurar el directorio de trabajo
+# Configurar Apache para servir el contenido desde public/
+COPY ./docker/apache/000-default.conf /etc/apache2/sites-available/000-default.conf
+
+# Copiar todos los archivos del proyecto
+COPY . /var/www/html
+
+# Establecer directorio de trabajo
 WORKDIR /var/www/html
 
-# Copiar los archivos de la app
-COPY . .
-
-# Instalar dependencias de Laravel
+# Instalar dependencias de Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 RUN composer install --no-dev --optimize-autoloader
+
+# Instalar dependencias de Node y compilar el frontend
 RUN npm install && npm run build
 
-# Crear base de datos SQLite temporal
-RUN touch /tmp/database.sqlite && chmod 777 /tmp/database.sqlite
+# Generar la clave de Laravel
+RUN php artisan key:generate --force
 
-# Generar clave si no existe (Render la usa de todos modos)
-RUN php artisan key:generate || true
+# Crear base de datos SQLite (se almacenará en /tmp)
+RUN mkdir -p /tmp/database && touch /tmp/database/database.sqlite
 
-# Exponer el puerto para Render
-EXPOSE 8000
+# Asignar permisos correctos
+RUN chown -R www-data:www-data /var/www/html /tmp/database
 
-# Comando para iniciar Laravel
-CMD php artisan migrate --force && php artisan serve --host 0.0.0.0 --port 8000
+# Exponer el puerto
+EXPOSE 80
+
+# Iniciar Apache
+CMD ["apache2-foreground"]
