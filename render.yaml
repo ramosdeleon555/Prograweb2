@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: prograweb2
+    env: php
+    region: oregon
+    plan: free
+    buildCommand: |
+      composer install --no-dev --optimize-autoloader
+      npm install
+      npm run build
+      php artisan key:generate
+      mkdir -p database
+      touch database/database.sqlite
+    startCommand: php artisan serve --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_KEY
+        value: base64:IU8qkIgZ02Ed44SxyitCkUhZ0Wu7z96bA1iCBc4GXCY=
+      - key: APP_URL
+        value: https://prograweb2.onrender.com
+      - key: DB_CONNECTION
+        value: sqlite
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: FILESYSTEM_DISK
+        value: local
