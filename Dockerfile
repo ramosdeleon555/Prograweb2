@@ -6,7 +6,7 @@ WORKDIR /var/www/html
 
 # Instalar dependencias del sistema y extensiones de PHP
 RUN apt-get update && apt-get install -y \
-    git unzip libpng-dev libonig-dev libxml2-dev sqlite3 libsqlite3-dev curl \
+    git unzip libpng-dev libonig-dev libxml2-dev sqlite3 libsqlite3-dev curl npm \
     && docker-php-ext-install pdo pdo_sqlite bcmath \
     && rm -rf /var/lib/apt/lists/*
 
@@ -16,14 +16,24 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 # Copiar archivos del proyecto
 COPY . .
 
+# Copiar .env.example a .env si no existe
+RUN if [ ! -f .env ]; then cp .env.example .env; fi
+
 # Instalar dependencias de PHP optimizadas (no dev)
 RUN composer install --no-dev --optimize-autoloader
 
-# Generar la key de Laravel
+# Generar key de Laravel
 RUN php artisan key:generate --force
+
+# Instalar dependencias de Node.js y construir assets de Vite/Tailwind
+RUN npm install
+RUN npm run build
+
+# Forzar HTTPS en producción (opcional, si quieres que todo salga seguro)
+RUN php -r "file_put_contents('app/Providers/AppServiceProvider.php', str_replace('use Illuminate\Support\Facades\URL;', 'use Illuminate\Support\Facades\URL;', file_get_contents('app/Providers/AppServiceProvider.php')));"
 
 # Exponer el puerto que Render usará
 EXPOSE 10000
 
-# Comando de inicio
+# Comando de inicio de Laravel
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=10000"]
