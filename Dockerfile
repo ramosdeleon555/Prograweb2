@@ -1,39 +1,36 @@
-# Usamos la imagen oficial de PHP 8.2 con CLI
-FROM php:8.2-cli
+# Usamos PHP 8.3 CLI como base
+FROM php:8.3-cli
 
-# Establecemos el directorio de trabajo
+# Instalamos dependencias del sistema y extensiones necesarias para Laravel
+RUN apt-get update && apt-get install -y \
+    git unzip libpng-dev libonig-dev libxml2-dev sqlite3 libsqlite3-dev nodejs npm curl \
+    && docker-php-ext-install pdo pdo_sqlite bcmath
+
+# Configuramos el directorio de trabajo
 WORKDIR /var/www/html
 
-# Instalamos dependencias del sistema y extensiones de PHP necesarias
-RUN apt-get update && apt-get install -y \
-        git \
-        unzip \
-        libpng-dev \
-        libjpeg-dev \
-        libfreetype6-dev \
-        libonig-dev \
-        curl \
-        zip \
-        unzip \
-        && docker-php-ext-configure gd --with-freetype --with-jpeg \
-        && docker-php-ext-install pdo pdo_mysql gd \
-        && rm -rf /var/lib/apt/lists/*
-
-# Instalamos Composer
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-
-# Copiamos los archivos del proyecto al contenedor
+# Copiamos todos los archivos del proyecto
 COPY . .
 
-# Instalamos dependencias de Laravel
-RUN composer install --no-dev --optimize-autoloader
+# Copiamos el .env.example a .env
+RUN cp .env.example .env
 
-# Ajustamos permisos de carpetas necesarias
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
-RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+# Instalamos Composer y dependencias de Laravel
+RUN curl -sS https://getcomposer.org/installer | php && \
+    php composer.phar install --no-dev --optimize-autoloader
 
-# Exponemos el puerto para PHP built-in server
-EXPOSE 8000
+# Instalamos Node.js y compilamos assets
+RUN npm install && npm run build
 
-# Comando por defecto al iniciar el contenedor
-CMD ["php", "-S", "0.0.0.0:8000", "-t", "public"]
+# Creamos la base de datos SQLite si no existe
+RUN mkdir -p database && touch database/database.sqlite
+
+# Generamos la key de Laravel y ejecutamos migraciones
+RUN php artisan key:generate --force
+RUN php artisan migrate --force
+
+# Exponemos el puerto que Render usará
+EXPOSE 10000
+
+# Comando para iniciar la aplicación
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=10000"]
