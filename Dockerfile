@@ -1,46 +1,29 @@
-# Usamos la imagen oficial de PHP 8.3 con CLI
+# Imagen oficial de PHP
 FROM php:8.3-cli
 
-# Instalamos dependencias del sistema necesarias para Laravel y Node
-RUN apt-get update && apt-get install -y \
-    git \
-    unzip \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    sqlite3 \
-    libsqlite3-dev \
-    nodejs \
-    npm \
-    && docker-php-ext-install pdo pdo_sqlite bcmath
-
-# Configuramos el directorio de trabajo
+# Establecer directorio de trabajo
 WORKDIR /var/www/html
 
-# Copiamos todos los archivos del proyecto
+# Instalar dependencias del sistema y extensiones de PHP
+RUN apt-get update && apt-get install -y \
+    git unzip libpng-dev libonig-dev libxml2-dev sqlite3 libsqlite3-dev curl \
+    && docker-php-ext-install pdo pdo_sqlite bcmath \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# Copiar archivos del proyecto
 COPY . .
 
-# Copiamos .env.example a .env
-COPY .env.example .env
+# Instalar dependencias de PHP optimizadas (no dev)
+RUN composer install --no-dev --optimize-autoloader
 
-# Instalamos dependencias de Composer
-RUN curl -sS https://getcomposer.org/installer | php && \
-    php composer.phar install --no-dev --optimize-autoloader
-
-# Instalamos dependencias de Node y compilamos los assets con Vite/Tailwind
-RUN npm install
-RUN npm run build
-
-# Creamos la base de datos SQLite si no existe
-RUN mkdir -p database && touch database/database.sqlite
-
-# Generamos la key de Laravel y ejecutamos migraciones
+# Generar la key de Laravel
 RUN php artisan key:generate --force
-RUN php artisan migrate --force
 
-# Exponemos el puerto que Render usará
+# Exponer el puerto que Render usará
 EXPOSE 10000
 
-# Comando por defecto al iniciar el contenedor
+# Comando de inicio
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=10000"]
