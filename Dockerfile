@@ -1,10 +1,8 @@
-# Imagen oficial de PHP
 FROM php:8.3-cli
 
-# Establecer directorio de trabajo
 WORKDIR /var/www/html
 
-# Instalar dependencias del sistema y extensiones de PHP
+# Instalar dependencias de sistema, PHP y SQLite
 RUN apt-get update && apt-get install -y \
     git unzip libpng-dev libonig-dev libxml2-dev sqlite3 libsqlite3-dev curl npm \
     && docker-php-ext-install pdo pdo_sqlite bcmath \
@@ -19,21 +17,22 @@ COPY . .
 # Copiar .env.example a .env si no existe
 RUN if [ ! -f .env ]; then cp .env.example .env; fi
 
-# Instalar dependencias de PHP optimizadas (no dev)
-RUN composer install --no-dev --optimize-autoloader
+# Crear archivo SQLite si no existe
+RUN mkdir -p database && touch database/database.sqlite
 
-# Generar key de Laravel
+# Dar permisos a storage y cache
+RUN chmod -R 775 storage bootstrap/cache
+
+# Instalar dependencias PHP y generar key
+RUN composer install --no-dev --optimize-autoloader
 RUN php artisan key:generate --force
 
 # Instalar dependencias de Node.js y construir assets de Vite/Tailwind
 RUN npm install
 RUN npm run build
 
-# Forzar HTTPS en producción (opcional, si quieres que todo salga seguro)
-RUN php -r "file_put_contents('app/Providers/AppServiceProvider.php', str_replace('use Illuminate\Support\Facades\URL;', 'use Illuminate\Support\Facades\URL;', file_get_contents('app/Providers/AppServiceProvider.php')));"
-
-# Exponer el puerto que Render usará
+# Exponer puerto de Laravel
 EXPOSE 10000
 
-# Comando de inicio de Laravel
+# Iniciar servidor
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=10000"]
